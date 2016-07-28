@@ -791,6 +791,7 @@ func TestAccAWSSecurityGroup_tags(t *testing.T) {
 					testAccCheckAWSSecurityGroupExists("aws_security_group.foo", &group),
 					testAccCheckTags(&group.Tags, "foo", ""),
 					testAccCheckTags(&group.Tags, "bar", "baz"),
+					testAccCheckTags(&group.Tags, "env", "Production"),
 				),
 			},
 		},
@@ -1305,6 +1306,7 @@ resource "aws_security_group" "foo" {
 
   tags {
     bar = "baz"
+    env = "Production"
   }
 }
 `
