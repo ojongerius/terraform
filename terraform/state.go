@@ -1454,6 +1454,8 @@ func ReadState(src io.Reader) (*State, error) {
 		return nil, fmt.Errorf("Decoding state file version failed: %v", err)
 	}
 
+	var v3State *State
+
 	switch versionIdentifier.Version {
 	case 0:
 		return nil, fmt.Errorf("State version 0 is not supported as JSON.")
@@ -1468,36 +1470,40 @@ func ReadState(src io.Reader) (*State, error) {
 			return nil, err
 		}
 
-		v3State, err := upgradeStateV2ToV3(v2State)
+		v3State, err = upgradeStateV2ToV3(v2State)
 		if err != nil {
 			return nil, err
 		}
 
 		// increment the Serial whenever we upgrade state
 		v3State.Serial++
-		return v3State, nil
 	case 2:
 		v2State, err := ReadStateV2(jsonBytes)
 		if err != nil {
 			return nil, err
 		}
-		v3State, err := upgradeStateV2ToV3(v2State)
+		v3State, err = upgradeStateV2ToV3(v2State)
 		if err != nil {
 			return nil, err
 		}
 
 		v3State.Serial++
-		return v3State, nil
 	case 3:
-		v3State, err := ReadStateV3(jsonBytes)
+		v3State, err = ReadStateV3(jsonBytes)
 		if err != nil {
 			return nil, err
 		}
-		return v3State, nil
 	default:
 		return nil, fmt.Errorf("Terraform %s does not support state version %d, please update.",
 			SemVersion.String(), versionIdentifier.Version)
 	}
+
+	// make sure all modules read from the state were properly initialized
+	for _, mod := range v3State.Modules {
+		mod.init()
+	}
+
+	return v3State, nil
 }
 
 func ReadStateV1(jsonBytes []byte) (*stateV1, error) {
