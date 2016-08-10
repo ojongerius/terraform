@@ -77,18 +77,19 @@ func TestStateAddModule(t *testing.T) {
 }
 
 func TestStateOutputTypeRoundTrip(t *testing.T) {
-	state := &State{
-		Modules: []*ModuleState{
-			&ModuleState{
-				Path: RootModulePath,
-				Outputs: map[string]*OutputState{
-					"string_output": &OutputState{
-						Value: "String Value",
-						Type:  "string",
-					},
-				},
+	modState := &ModuleState{
+		Path: RootModulePath,
+		Outputs: map[string]*OutputState{
+			"string_output": &OutputState{
+				Value: "String Value",
+				Type:  "string",
 			},
 		},
+	}
+	modState.init()
+
+	state := &State{
+		Modules: []*ModuleState{modState},
 	}
 
 	buf := new(bytes.Buffer)
@@ -102,7 +103,8 @@ func TestStateOutputTypeRoundTrip(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(state, roundTripped) {
-		t.Fatalf("bad: %#v", roundTripped)
+		t.Logf("expected:\n%#v", state)
+		t.Fatalf("got:\n%#v", roundTripped)
 	}
 }
 
@@ -119,6 +121,10 @@ func TestStateModuleOrphans(t *testing.T) {
 				Path: []string{RootModuleName, "bar"},
 			},
 		},
+	}
+
+	for _, m := range state.Modules {
+		m.init()
 	}
 
 	config := testModule(t, "state-module-orphans").Config()
@@ -142,6 +148,10 @@ func TestStateModuleOrphans_nested(t *testing.T) {
 				Path: []string{RootModuleName, "foo", "bar"},
 			},
 		},
+	}
+
+	for _, m := range state.Modules {
+		m.init()
 	}
 
 	actual := state.ModuleOrphans(RootModulePath, nil)
@@ -169,6 +179,10 @@ func TestStateModuleOrphans_nilConfig(t *testing.T) {
 		},
 	}
 
+	for _, m := range state.Modules {
+		m.init()
+	}
+
 	actual := state.ModuleOrphans(RootModulePath, nil)
 	expected := [][]string{
 		[]string{RootModuleName, "foo"},
@@ -193,6 +207,10 @@ func TestStateModuleOrphans_deepNestedNilConfig(t *testing.T) {
 				Path: []string{RootModuleName, "parent", "childbar"},
 			},
 		},
+	}
+
+	for _, m := range state.Modules {
+		m.init()
 	}
 
 	actual := state.ModuleOrphans(RootModulePath, nil)
@@ -1278,6 +1296,28 @@ func TestInstanceState_MergeDiff_nilDiff(t *testing.T) {
 }
 
 func TestReadWriteState(t *testing.T) {
+	modState := &ModuleState{
+		Path: rootModulePath,
+		Dependencies: []string{
+			"aws_instance.bar",
+		},
+		Resources: map[string]*ResourceState{
+			"foo": &ResourceState{
+				Primary: &InstanceState{
+					ID: "bar",
+					Ephemeral: EphemeralState{
+						ConnInfo: map[string]string{
+							"type":     "ssh",
+							"user":     "root",
+							"password": "supersecret",
+						},
+					},
+				},
+			},
+		},
+	}
+	modState.init()
+
 	state := &State{
 		Serial: 9,
 		Remote: &RemoteState{
@@ -1286,28 +1326,7 @@ func TestReadWriteState(t *testing.T) {
 				"url": "http://my-cool-server.com/",
 			},
 		},
-		Modules: []*ModuleState{
-			&ModuleState{
-				Path: rootModulePath,
-				Dependencies: []string{
-					"aws_instance.bar",
-				},
-				Resources: map[string]*ResourceState{
-					"foo": &ResourceState{
-						Primary: &InstanceState{
-							ID: "bar",
-							Ephemeral: EphemeralState{
-								ConnInfo: map[string]string{
-									"type":     "ssh",
-									"user":     "root",
-									"password": "supersecret",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+		Modules: []*ModuleState{modState},
 	}
 
 	buf := new(bytes.Buffer)
@@ -1330,7 +1349,8 @@ func TestReadWriteState(t *testing.T) {
 	mod.Resources["foo"].Primary.Ephemeral = EphemeralState{}
 
 	if !reflect.DeepEqual(actual, state) {
-		t.Fatalf("bad: %#v", actual)
+		t.Logf("expected:\n%#v", state)
+		t.Fatalf("got:\n%#v", actual)
 	}
 }
 
